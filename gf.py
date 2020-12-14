@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 import scipy as sp
 import scipy.ndimage
-from skimage.morphology import disk
 
 def local_mean(arr,r):
     (rows,cols) = arr.shape[:2];
@@ -219,9 +218,9 @@ def test_gf():
 
     r = 8
     eps = 0.05
-    result = guided_filter(img1,img2,r,eps)
+    result = guided_filter(img2,img1,r,eps)
     image_result = Image.fromarray((result * 255).astype(np.uint8))
-    image_result.save('AnhResultGIF1.png')
+    image_result.save('AnhResultGIF2.png')
 
 
     # cat_smoothed = guided_filter(cat, cat, r, eps)
