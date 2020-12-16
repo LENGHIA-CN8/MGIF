@@ -1,1 +1,1 @@
-#Multichannel-guided-image-filter
+#Multichannel-guided-image-filter and GIF

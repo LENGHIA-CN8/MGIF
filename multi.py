@@ -2,152 +2,142 @@ import math
 
 import cv2
 import numpy as np
-from PIL import Image;
 
-def local_mean(arr,r):
-    (rows,cols) = arr.shape[:2];
-    out = np.zeros((rows,cols))
-    mask = np.zeros((2*r+1,2*r+1))
+
+def local_mean(arr, r):
+    (rows, cols) = arr.shape[:2];
+    out = np.zeros((rows, cols))
+    mask = np.zeros((2 * r + 1, 2 * r + 1))
     # truyen cols vaf rows 0 vao anh
-    zeros_1 = np.zeros((1,arr.shape[1]))
+    zeros_1 = np.zeros((1, arr.shape[1]))
     for i in range(r):
-        arr = np.insert(arr,arr.shape[0],zeros_1,axis=0)
-        arr = np.insert(arr,0,zeros_1,axis=0)
-    zeros_2 = np.zeros((1,arr.shape[0]))
+        arr = np.insert(arr, arr.shape[0], zeros_1, axis=0)
+        arr = np.insert(arr, 0, zeros_1, axis=0)
+    zeros_2 = np.zeros((1, arr.shape[0]))
     for i in range(r):
-        arr = np.insert(arr,arr.shape[1],zeros_2,axis=1)
-        arr = np.insert(arr,0,zeros_2,axis=1)
-    for i in range(arr.shape[0]-(2*r)):
-        for j in range(arr.shape[1]-(2*r)):
+        arr = np.insert(arr, arr.shape[1], zeros_2, axis=1)
+        arr = np.insert(arr, 0, zeros_2, axis=1)
+    for i in range(arr.shape[0] - (2 * r)):
+        for j in range(arr.shape[1] - (2 * r)):
             # print(j)
-            mask = arr[i:i+2*r+1,j:j+2*r+1]
-            out[i,j] = np.mean(mask)
+            mask = arr[i:i + 2 * r + 1, j:j + 2 * r + 1]
+            out[i, j] = np.mean(mask)
     return out
-# def box(img, r):
-#     """ O(1) box filter
-#         img - >= 2d image
-#         r   - radius of box filter
-#     """
-#     (rows, cols) = img.shape[:2]
-#     imDst = np.zeros_like(img)
-#
-#     tile = [1] * img.ndim   #[1,1,..,1] hai chieu thi img.ndim la 2 = [1,1]
-#
-#     tile[0] = r
-#     # print("img",img)
-#     imCum = np.cumsum(img, 0)   #1200,800
-#     imDst[0:r+1, :, ...] = imCum[r:2*r+1, :, ...]
-#     imDst[r+1:rows-r, :, ...] = imCum[2*r+1:rows, :, ...] - imCum[0:rows-2*r-1, :, ...]
-#     imDst[rows-r:rows, :, ...] = np.tile(imCum[rows-1:rows, :, ...], tile) - imCum[rows-2*r-1:rows-r-1, :, ...]
-#
-#     tile = [1] * img.ndim
-#     tile[1] = r
-#     imCum = np.cumsum(imDst, 1)
-#     imDst[:, 0:r+1, ...] = imCum[:, r:2*r+1, ...]
-#     imDst[:, r+1:cols-r, ...] = imCum[:, 2*r+1 : cols, ...] - imCum[:, 0 : cols-2*r-1, ...]
-#     imDst[:, cols-r: cols, ...] = np.tile(imCum[:, cols-1:cols, ...], tile) - imCum[:, cols-2*r-1 : cols-r-1, ...]
-#
-#     return imDst
 
-def mean_of_all_guidance_at_pixel_k(i,j,local_var_I,local_var_I1):
-    return (local_var_I[i,j]+local_var_I1[i,j])/2
-def edge_aware_constraint(i,j,local_var_I,local_var_I1,covI1p,covIp):
+def mean_of_all_guidance_at_pixel_k(i, j, local_var_I, local_var_I1):
+    return (local_var_I[i, j] + local_var_I1[i, j]) / 2
+
+
+def edge_aware_constraint(i, j, local_var_I, local_var_I1, covI1p, covIp):
     global edge_aware_mu
     edge_aware_mu = np.array([])
-    t = local_var_I[i,j]/np.mean(local_var_I)
-    edge1 = (2/(1+math.exp(-t)) - 1)
-    if covIp[i,j] > 0 :
-        edge_aware_mu = np.append(edge_aware_mu,edge1*1)
-    else :
-        edge_aware_mu = np.append(edge_aware_mu,edge1*(-1))
+    t = local_var_I[i, j] / np.mean(local_var_I)
+    edge1 = (2 / (1 + math.exp(-t)) - 1)
+    if covIp[i, j] > 0:
+        edge_aware_mu = np.append(edge_aware_mu, edge1 * 1)
+    else:
+        edge_aware_mu = np.append(edge_aware_mu, edge1 * (-1))
 
-    t = local_var_I1[i,j]/np.mean(local_var_I1)
-    edge1 = (2/(1+math.exp(-t)) - 1)
-    if covI1p[i,j] > 0 :
+    t = local_var_I1[i, j] / np.mean(local_var_I1)
+    edge1 = (2 / (1 + math.exp(-t)) - 1)
+    if covI1p[i, j] > 0:
         edge_aware_mu = np.append(edge_aware_mu, edge1 * 1)
     else:
         edge_aware_mu = np.append(edge_aware_mu, edge1 * (-1))
 
     return edge_aware_mu;
-def edge_aware(i,j,eps,local_var_I,local_var_I1):
-    e = (0.001*256)**2
-    wk1 = (eps * np.mean(local_var_I) + eps * mean_of_all_guidance_at_pixel_k(i,j,local_var_I,local_var_I1)) / (local_var_I[i,j]+e)
-    wk2 = (eps * np.mean(local_var_I1) + eps * mean_of_all_guidance_at_pixel_k(i,j,local_var_I,local_var_I1)) / (local_var_I1[i,j]+e)
-    Wk = np.array([wk1,wk2]);
+
+
+def edge_aware(i, j, eps, local_var_I, local_var_I1):
+    e = (0.001 * 256) ** 2
+    wk1 = (eps * np.mean(local_var_I) + eps * mean_of_all_guidance_at_pixel_k(i, j, local_var_I, local_var_I1)) / (
+                local_var_I[i, j] + e)
+    wk2 = (eps * np.mean(local_var_I1) + eps * mean_of_all_guidance_at_pixel_k(i, j, local_var_I, local_var_I1)) / (
+                local_var_I1[i, j] + e)
+    Wk = np.array([wk1, wk2]);
     return Wk;
 
-def _gf_gray_multi(I,I1,p,r,eps):
+
+def _gf_gray_multi(I, I1, p, r, eps):
     (rows, cols) = I.shape
 
-    meanI = local_mean(I,r)
-    meanI1 = local_mean(I1,r)
-    meanII = local_mean(I * I,r)
-    meanI1I1 = local_mean(I1*I1,r)
-    meanII1 = local_mean(I*I1,r)
-    meanIp = local_mean(I*p,r)
-    meanI1p = local_mean(I1*p,r)
-    meanp = local_mean(p,r)
+    meanI = local_mean(I, r)
+    meanI1 = local_mean(I1, r)
+    meanII = local_mean(I * I, r)
+    meanI1I1 = local_mean(I1 * I1, r)
+    meanII1 = local_mean(I * I1, r)
+    meanIp = local_mean(I * p, r)
+    meanI1p = local_mean(I1 * p, r)
+    meanp = local_mean(p, r)
     # phuong sai kenh 1
-    local_varianceI = meanII - meanI*meanI
+    local_varianceI = meanII - meanI * meanI
     # phuong sai kenh 2
-    local_varianceI1 = meanI1I1 - meanI1*meanI1
+    local_varianceI1 = meanI1I1 - meanI1 * meanI1
     # hiep phuong sai giua hai channel
-    covII = meanII - meanI*meanI
-    covII1 = meanII1 - meanI*meanI1
-    covI1I = meanII1 - meanI*meanI1
-    covI1I1 = meanI1I1 - meanI1*meanI1
+    covII = meanII - meanI * meanI
+    covII1 = meanII1 - meanI * meanI1
+    covI1I = meanII1 - meanI * meanI1
+    covI1I1 = meanI1I1 - meanI1 * meanI1
     # hiep phuong sai kenh va inputimage
     covI1p = meanI1p - meanI1 * meanp
     covIp = meanIp - meanI * meanp
-    #tao 2 mang chua akj ung voi 2 kenh
-    Akk = np.zeros((rows,cols,2))
+    # tao 2 mang chua akj ung voi 2 kenh
+    Akk = np.zeros((rows, cols, 2))
     for i in range(rows):
         for j in range(cols):
-            W = np.diag(edge_aware(i,j,eps,local_varianceI,local_varianceI1))
-            Cj1j2 = np.array([ [covII[i,j],covI1I[i,j]] , [covII1[i,j],covI1I1[i,j]] ]);
-            edge_aware_const = edge_aware(i,j,eps,local_varianceI,local_varianceI1) * edge_aware_constraint(i,j,local_varianceI,local_varianceI1,covI1p,covIp)
-            Cj0 = np.array([covIp[i,j],covI1p[i,j]])
+            W = np.diag(edge_aware(i, j, eps, local_varianceI, local_varianceI1))
+            Cj1j2 = np.array([[covII[i, j], covI1I[i, j]], [covII1[i, j], covI1I1[i, j]]]);
+            edge_aware_const = edge_aware(i, j, eps, local_varianceI, local_varianceI1) * edge_aware_constraint(i, j,
+                                                                                                                local_varianceI,
+                                                                                                                local_varianceI1,
+                                                                                                                covI1p,
+                                                                                                                covIp)
+            Cj0 = np.array([covIp[i, j], covI1p[i, j]])
 
-            Ak =np.dot(np.linalg.inv(Cj1j2 + W),(Cj0 + edge_aware_const).T)
-            Akk[i,j,0] = Ak[0]
-            Akk[i,j,1] = Ak[1]
+            Ak = np.dot(np.linalg.inv(Cj1j2 + W), (Cj0 + edge_aware_const).T)
+            Akk[i, j, 0] = Ak[0]
+            Akk[i, j, 1] = Ak[1]
     print(Akk[:, :, 0])
 
-    bk = meanp - Akk[:,:,0]* meanI - Akk[:,:,1]* meanI1
+    bk = meanp - Akk[:, :, 0] * meanI - Akk[:, :, 1] * meanI1
     print(bk);
 
-    q = local_mean((Akk[:,:,0] * I),r) + local_mean((Akk[:,:,1] * I1),r) + local_mean(bk,r)
+    q = Akk[:, :, 0] * I + (Akk[:, :, 1] * I1) + bk
     return q
+
 
 def test_gf():
     import imageio
-    # cat = imageio.imread('cat.bmp').astype(np.float32) / 255
-    img1 = cv2.imread('img1_1.png').astype(np.float32) / 255
-    img2 = cv2.imread('img2_2.png').astype(np.float32) / 255
-    img1 = cv2.cvtColor(img1,cv2.COLOR_BGR2GRAY)
-    img2 = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
+    img1 = cv2.imread('xaminfarfocus2.png').astype(np.float32) / 255
+    img2 = cv2.imread('xaminnearfocus2.png').astype(np.float32) / 255
+    # img1 = cv2.resize(img1, (800, 600))
+    # img2 = cv2.resize(img2, (800, 600))
+    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
 
     # imgh = Image.fromarray((img2*255).astype(np.uint8))
     # imgh.show()
-    # imgh.save('xaminnearfocus.png')
+    # imgh.save('xaminnearfocus2.png')
     # img = Image.fromarray((img1*255).astype(np.uint8))
     # img.show()
-    # img.save('xaminfarfocus.png')
+    # img.save('xaminfarfocus2.png')
     # imgresult = Image.open('hello.png')
     # imgresult.show()
-    # print(cat.shape)
     # print(img1);
     r = 8
     eps = 0.05
-    result = _gf_gray_multi(img1,img2,img1,r,eps)
+    result = _gf_gray_multi(img1, img2, img1, r, eps)
     print(result)
-    image_result = Image.fromarray((result * 255).astype(np.uint8))
-    image_result.save('hello1.png')
+    cv2.imwrite('AnhResultMGIF_chairuou1.png', result * 255 )
     # print(result)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
 
-test_gf();
+test_gf()
+# arr = np.array( [0.60381245 ,0.60134708, 0.5946016  ,0.0221784 , 0.01893951, 0.02200228])
+# print(arr*255)
 
-#anh dau vao
+# anh dau vao
 # [[0.5369098  0.5408314  0.5408314  ... 0.04757255 0.03047843 0.07361569]
 #  [0.5369098  0.5408314  0.5369098  ... 0.03972941 0.02655686 0.06185098]
 #  [0.5369098  0.53298825 0.5369098  ... 0.04757255 0.03188628 0.03580784]
@@ -190,4 +180,115 @@ test_gf();
 #  [0.9895026  0.98461157 0.98246079 ... 0.94053041 0.94478973 0.94756716]
 #  [0.99235863 0.98721712 0.97819273 ... 0.94242706 0.94917031 0.94997306]
 #  [0.99532827 0.98989958 0.98704346 ... 0.94706253 0.95186234 0.95946194]]
+# voi mean sau loc
+# [[0.57757562 0.57617624 0.57527727 ... 0.03413884 0.03341536 0.03268788]
+#  [0.57627936 0.57481278 0.57383846 ... 0.03520481 0.03449288 0.03377993]
+#  [0.57523877 0.57371968 0.57268584 ... 0.03605373 0.03534085 0.03464002]
+#  ...
+#  [0.9603533  0.9589358  0.95776471 ... 0.91737306 0.91848149 0.91981482]
+#  [0.96195672 0.96062404 0.95952283 ... 0.91965356 0.9207057  0.9219656 ]
+#  [0.96412356 0.96286118 0.96181841 ... 0.92217599 0.92315456 0.92431868]]
+
+# anh thu voi anh KimLong
+
+# [[0.6031093  0.60048808 0.59842237 ... 0.30428369 0.29666155 0.28723947]
+#  [0.6015777  0.59909488 0.59726726 ... 0.31143998 0.30502873 0.2966615 ]
+#  [0.60080561 0.59852045 0.59700556 ... 0.31645683 0.31144004 0.30428369]
+#  ...
+#  [0.61414879 0.61366339 0.61298425 ... 0.55073091 0.55191709 0.55352813]
+#  [0.61419029 0.61375255 0.6130044  ... 0.55180686 0.55331933 0.55524844]
+#  [0.61419583 0.61394373 0.61324669 ... 0.55328321 0.55511675 0.5574364 ]]
+# [[-0.0274355  -0.02969865 -0.03197606 ...  0.01314972  0.01247731
+#    0.01181144]
+#  [-0.02955298 -0.03207831 -0.03465464 ...  0.0140106   0.01322574
+#    0.01247732]
+#  [-0.03166007 -0.03448417 -0.03740601 ...  0.01494879  0.0140106
+#    0.01314972]
+#  ...
+#  [-0.02868284 -0.0316134  -0.03462926 ... -0.03468857 -0.0322424
+#   -0.02993784]
+#  [-0.02661349 -0.0293138  -0.03205608 ... -0.03224452 -0.03014578
+#   -0.02812846]
+#  [-0.02446235 -0.02696357 -0.02947216 ... -0.02993966 -0.02812815
+#   -0.02635451]]
+# [[0.52980416 0.52870401 0.52772904 ... 0.09109991 0.09062423 0.09004283]
+#  [0.52354632 0.52289063 0.52230195 ... 0.0917551  0.09124621 0.09062423]
+#  [0.51640571 0.51640339 0.51638068 ... 0.09229116 0.0917551  0.09109991]
+#  ...
+#  [0.39863223 0.39810968 0.39985035 ... 0.86970579 0.87053821 0.8716775 ]
+#  [0.40652454 0.40594004 0.40765243 ... 0.8697465  0.87045658 0.87144321]
+#  [0.4145098  0.41393869 0.415703   ... 0.87007162 0.87065732 0.87149202]]
+
+# anh kimlong
+
+# [[0.48567453 0.48567453 0.48959613 ... 0.10572942 0.10572942 0.10572942]
+#  [0.48567453 0.48567453 0.49072552 ... 0.10572942 0.10572942 0.10572942]
+#  [0.48567453 0.48680395 0.49072552 ... 0.10572942 0.10572942 0.10572942]
+#  ...
+#  [0.42907843 0.4188902  0.41226274 ... 0.8382824  0.8382824  0.8382824 ]
+#  [0.43046278 0.42907843 0.41731372 ... 0.83436084 0.83436084 0.8265177 ]
+#  [0.43370196 0.4276706  0.42123532 ... 0.83043927 0.82400393 0.8225961 ]]
+# [[0.6031093  0.60048808 0.59842237 ... 0.30428369 0.29666155 0.28723947]
+#  [0.6015777  0.59909488 0.59726726 ... 0.31143998 0.30502873 0.2966615 ]
+#  [0.60080561 0.59852045 0.59700556 ... 0.31645683 0.31144004 0.30428369]
+#  ...
+#  [0.61414879 0.61366339 0.61298425 ... 0.55073091 0.55191709 0.55352813]
+#  [0.61419029 0.61375255 0.6130044  ... 0.55180686 0.55331933 0.55524844]
+#  [0.61419583 0.61394373 0.61324669 ... 0.55328321 0.55511675 0.5574364 ]]
+# [[-0.0274355  -0.02969865 -0.03197606 ...  0.01314972  0.01247731
+#    0.01181144]
+#  [-0.02955298 -0.03207831 -0.03465464 ...  0.0140106   0.01322574
+#    0.01247732]
+#  [-0.03166007 -0.03448417 -0.03740601 ...  0.01494879  0.0140106
+#    0.01314972]
+#  ...
+#  [-0.02868284 -0.0316134  -0.03462926 ... -0.03468857 -0.0322424
+#   -0.02993784]
+#  [-0.02661349 -0.0293138  -0.03205608 ... -0.03224452 -0.03014578
+#   -0.02812846]
+#  [-0.02446235 -0.02696357 -0.02947216 ... -0.02993966 -0.02812815
+#   -0.02635451]]
+# [[0.14849182 0.16464831 0.18077915 ... 0.03120724 0.02822208 0.02523692]
+#  [0.16304211 0.18093101 0.19880005 ... 0.03492409 0.03157308 0.02822208]
+#  [0.17690022 0.19655492 0.21620091 ... 0.03864094 0.03492409 0.03120724]
+#  ...
+#  [0.13655568 0.15152964 0.16741139 ... 0.36413287 0.33134672 0.29860233]
+#  [0.12659934 0.14046368 0.15516183 ... 0.33104538 0.30119605 0.2713837 ]
+#  [0.11617749 0.12890824 0.14240345 ... 0.29805221 0.27113896 0.24425901]]
+
+# thư lan 2
+# [[0.48567453 0.48567453 0.48959613 ... 0.10572942 0.10572942 0.10572942]
+#  [0.48567453 0.48567453 0.49072552 ... 0.10572942 0.10572942 0.10572942]
+#  [0.48567453 0.48680395 0.49072552 ... 0.10572942 0.10572942 0.10572942]
+#  ...
+#  [0.42907843 0.4188902  0.41226274 ... 0.8382824  0.8382824  0.8382824 ]
+#  [0.43046278 0.42907843 0.41731372 ... 0.83436084 0.83436084 0.8265177 ]
+#  [0.43370196 0.4276706  0.42123532 ... 0.83043927 0.82400393 0.8225961 ]]
+# [[0.6031093  0.60048808 0.59842237 ... 0.30428369 0.29666155 0.28723947]
+#  [0.6015777  0.59909488 0.59726726 ... 0.31143998 0.30502873 0.2966615 ]
+#  [0.60080561 0.59852045 0.59700556 ... 0.31645683 0.31144004 0.30428369]
+#  ...
+#  [0.61414879 0.61366339 0.61298425 ... 0.55073091 0.55191709 0.55352813]
+#  [0.61419029 0.61375255 0.6130044  ... 0.55180686 0.55331933 0.55524844]
+#  [0.61419583 0.61394373 0.61324669 ... 0.55328321 0.55511675 0.5574364 ]]
+# [[-0.0274355  -0.02969865 -0.03197606 ...  0.01314972  0.01247731
+#    0.01181144]
+#  [-0.02955298 -0.03207831 -0.03465464 ...  0.0140106   0.01322574
+#    0.01247732]
+#  [-0.03166007 -0.03448417 -0.03740601 ...  0.01494879  0.0140106
+#    0.01314972]
+#  ...
+#  [-0.02868284 -0.0316134  -0.03462926 ... -0.03468857 -0.0322424
+#   -0.02993784]
+#  [-0.02661349 -0.0293138  -0.03205608 ... -0.03224452 -0.03014578
+#   -0.02812846]
+#  [-0.02446235 -0.02696357 -0.02947216 ... -0.02993966 -0.02812815
+#   -0.02635451]]
+# [[0.54678215 0.54676043 0.54474024 ... 0.08049257 0.07814069 0.0753988 ]
+#  [0.54516942 0.54967987 0.54593999 ... 0.08293034 0.08073276 0.07814068]
+#  [0.54860775 0.54279645 0.54747129 ... 0.08497406 0.08293035 0.08049257]
+#  ...
+#  [0.50060821 0.4811831  0.46898781 ... 0.88801775 0.89234034 0.89959665]
+#  [0.51359145 0.50165253 0.47870188 ... 0.88632795 0.89085603 0.88749103]
+#  [0.52002436 0.50338748 0.48604363 ... 0.88144158 0.88210587 0.88893999]]
 
