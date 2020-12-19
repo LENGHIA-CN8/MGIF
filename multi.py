@@ -108,8 +108,8 @@ def _gf_gray_multi(I, I1, p, r, eps):
 
 def test_gf():
     import imageio
-    img1 = cv2.imread('xaminfarfocus2.png').astype(np.float32) / 255
-    img2 = cv2.imread('xaminnearfocus2.png').astype(np.float32) / 255
+    img1 = cv2.imread('ảnh/xaminfarfocus2.png').astype(np.float32) / 255
+    img2 = cv2.imread('ảnh/xaminnearfocus2.png').astype(np.float32) / 255
     # img1 = cv2.resize(img1, (800, 600))
     # img2 = cv2.resize(img2, (800, 600))
     img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
@@ -128,7 +128,7 @@ def test_gf():
     eps = 0.05
     result = _gf_gray_multi(img1, img2, img1, r, eps)
     print(result)
-    cv2.imwrite('AnhResultMGIF_chairuou1.png', result * 255 )
+    cv2.imwrite('image_result/AnhResultMGIF_chairuou1.png', result * 255)
     # print(result)
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
