@@ -1,5 +1,5 @@
 # Multichannel-guided-image-filter and GIF
-======
+
 ## (Chang Liu, Xiaolin Wu, Xiao Shu)
 
 ##### MGIF processing
