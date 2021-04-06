@@ -89,7 +89,7 @@ def _gf_gray(I, p, r, eps):
 def test_gf():
     import cv2
     import imageio
-    cat = imageio.imread('cat.bmp').astype(np.float32) / 255
+    cat = imageio.imread('./input_image/cat.bmp').astype(np.float32) / 255
     # img1 = cv2.imread('img1_1.png').astype(np.float32)
     # img2 = cv2.imread('img2_2.png').astype(np.float32)
     # img1 = cv2.resize(img1, (800, 600))
@@ -103,9 +103,10 @@ def test_gf():
     print('Result',result)
     # print(np.max(result))
     # cv2.imwrite('AnhResultGIF_anhcuatoi.png', result)
-    imageio.imwrite('cat_showsmoothed1.png', result)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+    # imageio.imwrite('cat_showsmoothed1.png', result)
+    cv2.imshow('cat_showsmoothed1.png',result)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 test_gf();
 
 
